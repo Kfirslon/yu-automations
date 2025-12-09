@@ -128,6 +128,7 @@ async function main() {
 
         let totalHours = 0;
         const shiftLines = [];
+        const seenShifts = new Set(); // Track duplicates
 
         // Process each row
         for (const row of rows) {
@@ -135,6 +136,16 @@ async function main() {
 
             const dateParts = row.Date.split('/');
             if (dateParts.length !== 3) continue;
+
+            // Create unique key for this shift (date + start + end time)
+            const shiftKey = `${row.Date}|${row['Start Time']}|${row['End Time']}`;
+
+            // Skip if we've already seen this shift
+            if (seenShifts.has(shiftKey)) {
+                console.log(`Skipping duplicate: ${row.Date} ${row['Start Time']}-${row['End Time']}`);
+                continue;
+            }
+            seenShifts.add(shiftKey);
 
             const rowDate = new Date(
                 parseInt(dateParts[2]),
@@ -155,7 +166,7 @@ async function main() {
         // Sort shifts by date
         shiftLines.sort();
 
-        console.log(`Found ${shiftLines.length} shifts, Total: ${totalHours} hours`);
+        console.log(`Found ${shiftLines.length} unique shifts, Total: ${totalHours} hours`);
 
         // Build email body
         const shiftListText = shiftLines.length > 0
