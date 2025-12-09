@@ -53,6 +53,10 @@ async function fetchEvents() {
 
     console.log(`Found ${eventBlocks.length - 1} events in feed`);
 
+    // Get today's date at midnight for comparison
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
     for (let i = 1; i < eventBlocks.length; i++) {
         const block = eventBlocks[i];
 
@@ -66,6 +70,11 @@ async function fetchEvents() {
             if (!uid || !summary) continue;
 
             const start = parseICalDate(dtStart);
+
+            // Skip past events (before today)
+            if (start && start < today) {
+                continue;
+            }
 
             events.push({
                 id: uid.trim(),
@@ -98,7 +107,7 @@ async function fetchEvents() {
         }
     }
 
-    console.log(`Successfully parsed ${events.length} events`);
+    console.log(`Successfully parsed ${events.length} current/future events`);
     return events;
 }
 
