@@ -1,0 +1,144 @@
+{
+    "name": "YU Gym Shifts - Weekly Email Summary",
+    "nodes": [
+        {
+            "parameters": {
+                "rule": {
+                    "interval": [
+                        {
+                            "field": "cronExpression",
+                            "expression": "=0 45 23 * * 4"
+                        }
+                    ]
+                }
+            },
+            "name": "Thursday 11:45 PM",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "typeVersion": 1.2,
+            "position": [
+                -384,
+                -112
+            ],
+            "id": "58e0a31b-a899-4373-96cf-6eb3eb613155"
+        },
+        {
+            "parameters": {
+                "documentId": {
+                    "__rl": true,
+                    "value": "11AudHMD7PdzuSxRe-lci32qeoWN5sr-VU8jpbxhVa5U",
+                    "mode": "list",
+                    "cachedResultName": "YU Gym Shifts",
+                    "cachedResultUrl": "https://docs.google.com/spreadsheets/d/11AudHMD7PdzuSxRe-lci32qeoWN5sr-VU8jpbxhVa5U/edit?usp=drivesdk"
+                },
+                "sheetName": {
+                    "__rl": true,
+                    "value": "gid=0",
+                    "mode": "list",
+                    "cachedResultName": "YU Gym Shifts",
+                    "cachedResultUrl": "https://docs.google.com/spreadsheets/d/11AudHMD7PdzuSxRe-lci32qeoWN5sr-VU8jpbxhVa5U/edit#gid=0"
+                },
+                "options": {}
+            },
+            "name": "Read Shifts Sheet",
+            "type": "n8n-nodes-base.googleSheets",
+            "typeVersion": 4.5,
+            "position": [
+                -160,
+                -112
+            ],
+            "id": "bce9582a-dec8-4bf5-a0ab-4ea269067784",
+            "credentials": {
+                "googleSheetsOAuth2Api": {
+                    "id": "J9sVJVT130cqjED5",
+                    "name": "Google Sheets account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "jsCode": "// Pay Period Configuration\nconst ANCHOR_DATE = new Date('2025-11-29T00:00:00'); // Saturday, Nov 29, 2025\nconst PERIOD_LENGTH_DAYS = 14;\n\n// Get current date in Eastern Time\nconst now = new Date();\n\n// Calculate current pay period\nfunction getPayPeriod(date) {\n  const timeDiff = date.getTime() - ANCHOR_DATE.getTime();\n  const daysDiff = Math.floor(timeDiff / (1000 * 60 * 60 * 24));\n  const periodIndex = Math.floor(daysDiff / PERIOD_LENGTH_DAYS);\n  \n  const periodStart = new Date(ANCHOR_DATE);\n  periodStart.setDate(ANCHOR_DATE.getDate() + (periodIndex * PERIOD_LENGTH_DAYS));\n  \n  const periodEnd = new Date(periodStart);\n  periodEnd.setDate(periodStart.getDate() + PERIOD_LENGTH_DAYS - 1);\n  \n  return { periodStart, periodEnd };\n}\n\n// Format date as MM/DD/YYYY\nfunction formatDate(date) {\n  const month = String(date.getMonth() + 1).padStart(2, '0');\n  const day = String(date.getDate()).padStart(2, '0');\n  const year = date.getFullYear();\n  return `${month}/${day}/${year}`;\n}\n\n// Get current pay period\nconst currentPeriod = getPayPeriod(now);\nconst periodStartStr = formatDate(currentPeriod.periodStart);\nconst periodEndStr = formatDate(currentPeriod.periodEnd);\n\n// Get all rows from Google Sheets\nconst allRows = $input.all();\n\nlet totalHours = 0;\nconst shiftLines = [];\n\n// Process each row\nfor (const item of allRows) {\n  const row = item.json;\n  \n  // Skip header row or empty rows\n  if (!row.Date || row.Date === 'Date' || row.Date === 'MM/DD/YYYY') continue;\n  \n  // Parse the date from the sheet (MM/DD/YYYY format)\n  const dateParts = row.Date.split('/');\n  if (dateParts.length !== 3) continue;\n  \n  const rowDate = new Date(\n    parseInt(dateParts[2]), // year\n    parseInt(dateParts[0]) - 1, // month (0-indexed)\n    parseInt(dateParts[1]) // day\n  );\n  \n  // Check if this shift is in the current pay period\n  if (rowDate >= currentPeriod.periodStart && rowDate <= currentPeriod.periodEnd) {\n    const hours = parseFloat(row.Hours) || 0;\n    totalHours += hours;\n    \n    // Format shift line: \"12/01/2025 — 1 hour (05:00 PM - 06:00 PM)\"\n    const hourText = hours === 1 ? 'hour' : 'hours';\n    shiftLines.push(`${row.Date} — ${hours} ${hourText} (${row['Start Time']} - ${row['End Time']})`);\n  }\n}\n\n// Sort shifts by date\nshiftLines.sort();\n\n// Build email body\nconst shiftListText = shiftLines.length > 0 \n  ? shiftLines.join('\\n') \n  : 'No shifts recorded for this pay period';\n\nconst emailBody = `Pay Period: ${periodStartStr} – ${periodEndStr}\n\n${shiftListText}\n\nTotal Hours: ${totalHours.toFixed(1)}`;\n\n// Return data for email\nreturn [{\n  json: {\n    subject: 'YU Gym Shifts — Weekly Pay Period Summary',\n    body: emailBody,\n    totalHours: totalHours.toFixed(1),\n    periodStart: periodStartStr,\n    periodEnd: periodEndStr,\n    shiftCount: shiftLines.length\n  }\n}];"
+            },
+            "name": "Calculate Pay Period & Format Email",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                64,
+                -112
+            ],
+            "id": "0a928226-e965-4991-a899-81767fc662d9"
+        },
+        {
+            "parameters": {
+                "sendTo": "kfirslon@gmail.com",
+                "subject": "={{ $json.subject }}",
+                "emailType": "text",
+                "message": "={{ $json.body }}",
+                "options": {
+                    "appendAttribution": false
+                }
+            },
+            "type": "n8n-nodes-base.gmail",
+            "typeVersion": 2.1,
+            "position": [
+                288,
+                -112
+            ],
+            "id": "447360d2-7710-456e-ae08-0ffddba717fa",
+            "name": "Send a message",
+            "webhookId": "91d9b727-350e-40fa-9b43-82cee2af87f4",
+            "credentials": {
+                "gmailOAuth2": {
+                    "id": "ppF0389Dhvhj2Bic",
+                    "name": "Gmail account"
+                }
+            }
+        }
+    ],
+    "pinData": {},
+    "connections": {
+        "Thursday 11:45 PM": {
+            "main": [
+                [
+                    {
+                        "node": "Read Shifts Sheet",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Read Shifts Sheet": {
+            "main": [
+                [
+                    {
+                        "node": "Calculate Pay Period & Format Email",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Calculate Pay Period & Format Email": {
+            "main": [
+                [
+                    {
+                        "node": "Send a message",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "active": true,
+    "settings": {
+        "executionOrder": "v1"
+    },
+    "versionId": "57f99082-9a21-41aa-9922-830cae13a7a3",
+    "meta": {
+        "templateCredsSetupCompleted": true,
+        "instanceId": "4b4963be0239e64d60630a60e49e23314b01eaf5cc1949ed90f06ca77790254e"
+    },
+    "id": "0Fv4c4eKoHuOxWZB",
+    "tags": []
+}

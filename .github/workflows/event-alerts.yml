@@ -1,0 +1,44 @@
+name: YU Event Alerts
+
+on:
+  schedule:
+    # Every day at 9:00 AM Eastern (14:00 UTC)
+    - cron: '0 14 * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  check-events:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Download cache from artifact
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          name: events-cache
+          path: .
+          if_no_artifact_found: ignore
+        continue-on-error: true
+
+      - name: Run event alerts
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+        run: node yu-event-alerts-gh.js
+
+      - name: Upload cache as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: events-cache
+          path: events-cache.json
+          overwrite: true

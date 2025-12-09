@@ -1,0 +1,355 @@
+{
+    "name": "Real-Time YU Event Alerts",
+    "nodes": [
+        {
+            "parameters": {
+                "url": "https://yeshiva.campusgroups.com/ical/yeshiva/ical_yeshiva.ics",
+                "options": {
+                    "response": {
+                        "response": {
+                            "responseFormat": "text"
+                        }
+                    }
+                }
+            },
+            "name": "Fetch iCal Feed",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [
+                -1504,
+                -32
+            ],
+            "id": "befa5ff8-b0da-4881-9fb7-ef2cd92cacd8",
+            "notes": "Force text response instead of binary"
+        },
+        {
+            "parameters": {
+                "assignments": {
+                    "assignments": [
+                        {
+                            "id": "ical-text",
+                            "name": "icalText",
+                            "value": "={{ $json.data }}",
+                            "type": "string"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "name": "Extract Text",
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 3.4,
+            "position": [
+                -1280,
+                -32
+            ],
+            "id": "83d20ac0-067d-4ac7-94ae-112d3020459c"
+        },
+        {
+            "parameters": {
+                "jsCode": "// Get the iCal text\nconst icalText = $input.first().json.icalText;\n\nif (!icalText || typeof icalText !== 'string') {\n  console.log('No iCal text found');\n  return [];\n}\n\n// Fix escaped newlines - the data has literal \\n instead of actual newlines\nconst fixedText = icalText.replace(/\\\\n/g, '\\n');\n\n// Parse iCal events\nconst events = [];\nconst eventBlocks = fixedText.split('BEGIN:VEVENT');\n\nconsole.log('Found ' + (eventBlocks.length - 1) + ' events in feed');\n\n// Process each event (skip first block which is header)\nfor (let i = 1; i < eventBlocks.length; i++) {\n  const block = eventBlocks[i];\n  \n  try {\n    // Extract event data\n    const uid = (block.match(/UID:([^\\r\\n]+)/) || [])[1];\n    const summary = (block.match(/SUMMARY[^:]*:([^\\r\\n]+)/) || [])[1];\n    const dtStart = (block.match(/DTSTART[^:]*:([^\\r\\n]+)/) || [])[1];\n    const dtEnd = (block.match(/DTEND[^:]*:([^\\r\\n]+)/) || [])[1];\n    const location = (block.match(/LOCATION:([^\\r\\n]+)/) || [])[1];\n    const url = (block.match(/URL:([^\\r\\n]+)/) || [])[1];\n    \n    if (!uid || !summary) {\n      console.log('Skipping event - missing UID or summary');\n      continue;\n    }\n    \n    // Parse date/time\n    const parseDate = (str) => {\n      if (!str) return null;\n      try {\n        const y = str.substring(0, 4);\n        const m = str.substring(4, 6);\n        const d = str.substring(6, 8);\n        const h = str.substring(9, 11) || '00';\n        const min = str.substring(11, 13) || '00';\n        return new Date(Date.UTC(parseInt(y), parseInt(m) - 1, parseInt(d), parseInt(h), parseInt(min)));\n      } catch (e) {\n        return null;\n      }\n    };\n    \n    const start = parseDate(dtStart);\n    \n    events.push({\n      id: uid.trim(),\n      title: (summary || 'Untitled Event')\n        .replace(/ENCODING=QUOT[^:]*:/g, '')\n        .replace(/\\\\,/g, ',')\n        .replace(/\\\\n/g, ' ')\n        .replace(/\\\\;/g, ';')\n        .replace(/\\\\/g, '')\n        .trim(),\n      date: start ? start.toLocaleDateString('en-US', {\n        weekday: 'short',\n        month: 'short',\n        day: 'numeric',\n        year: 'numeric',\n        timeZone: 'America/New_York'\n      }) : 'TBD',\n      time: start ? start.toLocaleTimeString('en-US', {\n        hour: 'numeric',\n        minute: '2-digit',\n        hour12: true,\n        timeZone: 'America/New_York'\n      }) : 'TBD',\n      location: location ? location.replace(/\\\\,/g, ',').replace(/\\\\/g, '').trim() : 'TBD',\n      url: url ? url.trim() : 'https://yeshiva.campusgroups.com/events',\n      timestamp: new Date().toISOString()\n    });\n  } catch (e) {\n    console.error('Parse error:', e);\n  }\n}\n\nconsole.log('Successfully parsed ' + events.length + ' events');\n\nif (events.length > 0) {\n  return events.map(e => ({ json: e }));\n}\n\nreturn [];"
+            },
+            "name": "Parse Events",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                -1056,
+                -32
+            ],
+            "id": "ea2b31a9-c492-4560-bcae-03ca09c830d6"
+        },
+        {
+            "parameters": {
+                "documentId": {
+                    "__rl": true,
+                    "value": "1NESnoGga1ATLeFdsZElHHd_ZF5kD_Msn4TAksomlok0",
+                    "mode": "list",
+                    "cachedResultName": "YU Events Notifications Cache",
+                    "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1NESnoGga1ATLeFdsZElHHd_ZF5kD_Msn4TAksomlok0/edit?usp=drivesdk"
+                },
+                "sheetName": {
+                    "__rl": true,
+                    "value": "gid=0",
+                    "mode": "list",
+                    "cachedResultName": "Sheet1",
+                    "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1NESnoGga1ATLeFdsZElHHd_ZF5kD_Msn4TAksomlok0/edit#gid=0"
+                },
+                "options": {}
+            },
+            "name": "Read Cache",
+            "type": "n8n-nodes-base.googleSheets",
+            "typeVersion": 4.5,
+            "position": [
+                -832,
+                -32
+            ],
+            "id": "ecb92956-f7f3-48c9-9407-ab2fe32e503e",
+            "executeOnce": true,
+            "alwaysOutputData": true,
+            "credentials": {
+                "googleSheetsOAuth2Api": {
+                    "id": "J9sVJVT130cqjED5",
+                    "name": "Google Sheets account"
+                }
+            },
+            "notes": "YOU MUST: Select your Google Sheets credential and the cache sheet"
+        },
+        {
+            "parameters": {
+                "jsCode": "// Get current events and cached events\nconst currentEvents = $('Parse Events').all();\nconst cachedEvents = $('Read Cache').all();\n\n// Build set of cached IDs\nconst cachedIds = new Set();\nfor (const item of cachedEvents) {\n  const id = item.json['Event ID'] || item.json.id;\n  if (id) cachedIds.add(id);\n}\n\n// Find NEW events only\nconst newEvents = [];\nfor (const item of currentEvents) {\n  if (!cachedIds.has(item.json.id)) {\n    newEvents.push(item.json);\n  }\n}\n\nconsole.log(`Found ${newEvents.length} new events out of ${currentEvents.length} total`);\n\nif (newEvents.length > 0) {\n  return newEvents.map(e => ({ json: e }));\n}\n\nreturn [];"
+            },
+            "name": "Find New Events",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                -608,
+                -32
+            ],
+            "id": "59e79cae-4cab-4969-8205-682ec2d7abce"
+        },
+        {
+            "parameters": {
+                "sendTo": "kfirslon@gmail.com",
+                "subject": "=🚨 NEW YU EVENT: {{ $json.title }}",
+                "message": "=<div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0;\">\n  <div style=\"background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;\">\n    <h1 style=\"color: white; margin: 0;\">🎓 New YU Event!</h1>\n  </div>\n  \n  <div style=\"background: #f8f9fa; padding: 30px;\">\n    <div style=\"background: white; padding: 25px; border-radius: 8px;\">\n      <h2 style=\"color: #333; margin-top: 0;\">{{ $json.title }}</h2>\n      \n      <div style=\"margin: 20px 0; padding: 15px; background: #e3f2fd; border-left: 4px solid #2196f3;\">\n        <p style=\"margin: 8px 0;\"><strong>📅 Date:</strong> {{ $json.date }}</p>\n        <p style=\"margin: 8px 0;\"><strong>🕐 Time:</strong> {{ $json.time }}</p>\n        <p style=\"margin: 8px 0;\"><strong>📍 Location:</strong> {{ $json.location }}</p>\n      </div>\n      \n      <div style=\"text-align: center; margin: 25px 0;\">\n        <a href=\"{{ $json.url }}\" style=\"background: #4CAF50; color: white; padding: 15px 40px; text-decoration: none; border-radius: 50px; font-weight: bold;\">🎟️ REGISTER NOW</a>\n      </div>\n      \n      <p style=\"color: #888; font-size: 12px; border-top: 1px solid #eee; padding-top: 15px; margin-top: 20px;\">⚡ Notified within 30 seconds</p>\n    </div>\n  </div>\n</div>",
+                "options": {}
+            },
+            "name": "Send Email",
+            "type": "n8n-nodes-base.gmail",
+            "typeVersion": 2.1,
+            "position": [
+                -384,
+                -128
+            ],
+            "id": "f4b99a5f-35bc-4d56-bcfb-94be6ecb0471",
+            "webhookId": "180af2e8-6e17-422d-b06f-9b7d11a83bf0",
+            "credentials": {
+                "gmailOAuth2": {
+                    "id": "ppF0389Dhvhj2Bic",
+                    "name": "Gmail account"
+                }
+            },
+            "notes": "YOU MUST: Select your Gmail credential"
+        },
+        {
+            "parameters": {
+                "operation": "append",
+                "documentId": {
+                    "__rl": true,
+                    "value": "1NESnoGga1ATLeFdsZElHHd_ZF5kD_Msn4TAksomlok0",
+                    "mode": "list",
+                    "cachedResultName": "YU Events Notifications Cache",
+                    "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1NESnoGga1ATLeFdsZElHHd_ZF5kD_Msn4TAksomlok0/edit?usp=drivesdk"
+                },
+                "sheetName": {
+                    "__rl": true,
+                    "value": "gid=0",
+                    "mode": "list",
+                    "cachedResultName": "Sheet1",
+                    "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1NESnoGga1ATLeFdsZElHHd_ZF5kD_Msn4TAksomlok0/edit#gid=0"
+                },
+                "columns": {
+                    "mappingMode": "defineBelow",
+                    "value": {
+                        "Event ID": "={{ $json.id }}",
+                        "Title": "={{ $json.title }}",
+                        "Date": "={{ $json.date }}",
+                        "Time": "={{ $json.time }}",
+                        "Location": "={{ $json.location }}",
+                        "First Seen": "={{ $json.timestamp }}",
+                        "url": "={{ $json.url }}"
+                    },
+                    "matchingColumns": [],
+                    "schema": [
+                        {
+                            "id": "Event ID",
+                            "displayName": "Event ID",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true
+                        },
+                        {
+                            "id": "Title",
+                            "displayName": "Title",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true
+                        },
+                        {
+                            "id": "Date",
+                            "displayName": "Date",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true
+                        },
+                        {
+                            "id": "Time",
+                            "displayName": "Time",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true
+                        },
+                        {
+                            "id": "Location",
+                            "displayName": "Location",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true
+                        },
+                        {
+                            "id": "url",
+                            "displayName": "url",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true,
+                            "removed": false
+                        },
+                        {
+                            "id": "First Seen",
+                            "displayName": "First Seen",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true
+                        }
+                    ],
+                    "attemptToConvertTypes": false,
+                    "convertFieldsToString": false
+                },
+                "options": {}
+            },
+            "name": "Save to Cache",
+            "type": "n8n-nodes-base.googleSheets",
+            "typeVersion": 4.5,
+            "position": [
+                -384,
+                64
+            ],
+            "id": "56311f0a-dc0c-4698-8cd2-88677e0f2075",
+            "credentials": {
+                "googleSheetsOAuth2Api": {
+                    "id": "J9sVJVT130cqjED5",
+                    "name": "Google Sheets account"
+                }
+            },
+            "notes": "YOU MUST: Select your Google Sheets credential and the cache sheet"
+        },
+        {
+            "parameters": {
+                "rule": {
+                    "interval": [
+                        {
+                            "triggerAtHour": 9
+                        }
+                    ]
+                }
+            },
+            "name": "Every day at 9 am",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "typeVersion": 1.2,
+            "position": [
+                -1728,
+                -32
+            ],
+            "id": "78852bb2-ca9e-40e0-b155-16bd00bd7d58"
+        }
+    ],
+    "pinData": {},
+    "connections": {
+        "Fetch iCal Feed": {
+            "main": [
+                [
+                    {
+                        "node": "Extract Text",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Extract Text": {
+            "main": [
+                [
+                    {
+                        "node": "Parse Events",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Parse Events": {
+            "main": [
+                [
+                    {
+                        "node": "Read Cache",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Read Cache": {
+            "main": [
+                [
+                    {
+                        "node": "Find New Events",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Find New Events": {
+            "main": [
+                [
+                    {
+                        "node": "Send Email",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Save to Cache",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Every day at 9 am": {
+            "main": [
+                [
+                    {
+                        "node": "Fetch iCal Feed",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "active": false,
+    "settings": {
+        "executionOrder": "v1"
+    },
+    "versionId": "f5f3feb1-7208-444c-a9c2-3126e925deca",
+    "meta": {
+        "templateCredsSetupCompleted": true,
+        "instanceId": "4b4963be0239e64d60630a60e49e23314b01eaf5cc1949ed90f06ca77790254e"
+    },
+    "id": "JE3nN11ePWyghQdr",
+    "tags": []
+}

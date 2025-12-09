@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+
+# Local environment (contains secrets)
+.env
+
+# Local cache (GitHub uses artifacts instead)
+events-cache.json
+
+# Windows startup files (local only)
+start-automations.bat
+start-automations.vbs
+
+# Scheduler (local only)
+scheduler.js

@@ -1,0 +1,30 @@
+name: YU Gym Shifts Summary
+
+on:
+  schedule:
+    # Every Thursday at 11:45 PM Eastern (Friday 04:45 UTC)
+    - cron: '45 4 * * 5'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  send-summary:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run gym shifts summary
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          GYM_SHIFTS_SHEET_ID: ${{ secrets.GYM_SHIFTS_SHEET_ID }}
+        run: node yu-gym-shifts-gh.js
